@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Next.js agent instruction stubs (recreated by `next dev`)
+/AGENTS.md
+/CLAUDE.md
+
 # production
 /build
 
