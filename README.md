@@ -4,6 +4,8 @@
 
 Макет: [Figma](https://www.figma.com/design/p9mgvNBdfGlU7dB3XjaVt2/nesta_promo)
 
+> [English version](./README.en.md)
+
 ## Стек
 
 | Слой | Технологии |
