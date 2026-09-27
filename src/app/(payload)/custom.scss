@@ -1,0 +1,135 @@
+.admin-lang-switch {
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-lang-switch .popup-button {
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 999px;
+  background: var(--theme-elevation-50);
+  min-height: 32px;
+  padding: 0 8px 0 10px;
+}
+
+.admin-lang-switch .popup-button:hover {
+  background: var(--theme-elevation-100);
+  border-color: var(--theme-elevation-250);
+}
+
+.admin-lang-switch__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-lang-switch__globe {
+  flex-shrink: 0;
+  opacity: 0.78;
+}
+
+.admin-lang-switch__name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.admin-lang-switch__code {
+  display: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.admin-lang-switch__option-code {
+  opacity: 0.55;
+  font-size: 12px;
+}
+
+.login .admin-lang-switch {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .admin-lang-switch__name {
+    display: none;
+  }
+
+  .admin-lang-switch__code {
+    display: inline;
+  }
+}
+
+.app-header__localizer.localizer {
+  left: 50%;
+  right: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.app-header__localizer-spacing {
+  display: none;
+}
+
+.app-header__actions > div:has(.content-locale-hint-slot) {
+  display: none;
+}
+
+.content-locale-hint {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.content-locale-hint .popup-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.content-locale-hint__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--theme-elevation-250);
+  border-radius: 50%;
+  background: var(--theme-elevation-50);
+  color: var(--theme-elevation-600);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.content-locale-hint__icon:hover,
+.content-locale-hint .popup--active .content-locale-hint__icon {
+  background: var(--theme-elevation-100);
+  border-color: var(--theme-elevation-400);
+  color: var(--theme-elevation-800);
+}
+
+.content-locale-hint__panel {
+  max-width: 280px;
+  padding: 4px 2px;
+  white-space: normal;
+}
+
+.content-locale-hint__panel strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.content-locale-hint__panel p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--theme-elevation-700);
+  white-space: normal;
+}

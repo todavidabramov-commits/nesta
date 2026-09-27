@@ -1,0 +1,28 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  --color-forest: #163324;
+  --color-ink: #1c1e1d;
+  --color-muted: #5c615e;
+  --color-accent: #c5a880;
+  --color-surface: #fffdf9;
+  --color-surface-soft: #fcfaf6;
+  --color-surface-muted: #faf8f5;
+  --color-nav-active: #f5f0e7;
+  --color-line: #e7e1d7;
+  --color-bg-from: #f7f3eb;
+  --color-bg-to: #efe7da;
+  --color-footer: #1c1e1d;
+  --color-footer-muted: #a2a7a4;
+  --color-footer-dim: #818784;
+  --color-footer-line: #333a36;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-logo: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Schibsted Grotesk', 'Segoe UI', sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-card: 10px;
+  --max-width-page: 1920px;
+}

@@ -1,0 +1,15 @@
+---
+description: Prefer Tailwind utilities over custom CSS for frontend UI
+alwaysApply: true
+---
+
+# Tailwind-first styling
+
+For public frontend UI (`src/components/**`, `src/app/(frontend)/**`):
+
+- Prefer **Tailwind utility classes** (`className`) for layout, spacing, typography, colors, borders, responsive and state variants.
+- Reuse tokens already in `src/tailwind.css` `@theme` (`forest`, `ink`, `muted`, `accent`, `surface`, `line`, fonts, radii).
+- Use shared helpers in `src/lib/ui.ts` (`cn`, `btnClass`) instead of duplicating button/layout strings.
+- **Do not** add new BEM blocks or large rules to `styles.css` when the same result can be done with utilities.
+- Keep CSS only for cases utilities fit poorly: complex animations, third-party widgets (Leaflet, react-select), sticky/sheet geometry that already lives in CSS, or true one-off that cannot be expressed cleanly in Tailwind.
+- When touching an existing BEM section, prefer migrating that piece to utilities rather than extending the BEM stylesheet.
