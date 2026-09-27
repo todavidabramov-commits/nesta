@@ -33,7 +33,8 @@ export function NestaLogo({
   return (
     <span className={cn('inline-flex items-center justify-center leading-none', className)}>
       <Image
-        className="block h-auto max-w-full w-auto object-contain"
+        className="block max-w-none object-contain"
+        style={{ height, width: 'auto' }}
         src={src}
         alt="NESTA Real Estate"
         width={width}

@@ -181,3 +181,75 @@ export function formatBudgetShort(value: number, purpose: MatchingPurpose, local
   }
   return `€${Math.round(value / 1000)}k`
 }
+
+const PRIORITY_SET = new Set<MatchingPriorityId>([
+  'space',
+  'quiet',
+  'transit',
+  'schools',
+  'center',
+  'outdoor',
+  'parking',
+])
+
+export function isMatchingPriorityId(value: string): value is MatchingPriorityId {
+  return PRIORITY_SET.has(value as MatchingPriorityId)
+}
+
+export function prefsKey(prefs: MatchingPrefs): string {
+  const priorities = [...prefs.priorities].sort().join(',')
+  return [
+    prefs.purpose,
+    prefs.budgetMin,
+    prefs.budgetMax,
+    prefs.bedrooms,
+    priorities,
+  ].join('|')
+}
+
+export function matchingPrefsEqual(a: MatchingPrefs, b: MatchingPrefs): boolean {
+  return prefsKey(a) === prefsKey(b)
+}
+
+export function matchingSearchHref(prefs: MatchingPrefs, run = true): string {
+  const params = new URLSearchParams()
+  params.set('purpose', prefs.purpose)
+  params.set('budgetMin', String(prefs.budgetMin))
+  params.set('budgetMax', String(prefs.budgetMax))
+  params.set('bedrooms', String(prefs.bedrooms))
+  if (prefs.priorities.length) params.set('priorities', prefs.priorities.join(','))
+  if (run) params.set('run', '1')
+  return `/matching?${params.toString()}`
+}
+
+export function parseMatchingPrefsFromSearchParams(
+  params: URLSearchParams | Record<string, string | string[] | undefined>,
+): Partial<MatchingPrefs> & { run?: boolean } {
+  const get = (key: string) => {
+    if (params instanceof URLSearchParams) return params.get(key) || undefined
+    const raw = params[key]
+    return Array.isArray(raw) ? raw[0] : raw
+  }
+
+  const purposeRaw = get('purpose')
+  const purpose: MatchingPurpose | undefined =
+    purposeRaw === 'rent' || purposeRaw === 'buy' ? purposeRaw : undefined
+
+  const budgetMin = Number(get('budgetMin'))
+  const budgetMax = Number(get('budgetMax'))
+  const bedrooms = Number(get('bedrooms'))
+  const priorities = String(get('priorities') || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(isMatchingPriorityId)
+    .slice(0, 3)
+
+  return {
+    ...(purpose ? { purpose } : {}),
+    ...(Number.isFinite(budgetMin) ? { budgetMin } : {}),
+    ...(Number.isFinite(budgetMax) ? { budgetMax } : {}),
+    ...(Number.isFinite(bedrooms) && bedrooms >= 1 && bedrooms <= 4 ? { bedrooms } : {}),
+    ...(priorities.length ? { priorities } : {}),
+    run: get('run') === '1',
+  }
+}

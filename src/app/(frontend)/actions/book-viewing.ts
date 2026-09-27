@@ -1,7 +1,10 @@
 'use server'
 
+import { headers } from 'next/headers'
+
 import { getLocale } from '@/i18n/get-locale'
 import { getPayloadClient } from '@/lib/payload'
+import { bookViewingSchema, parseForm } from '@/lib/validation'
 
 export type BookViewingResult =
   | { ok: true; id: string }
@@ -14,17 +17,16 @@ export async function createViewingRequest(input: {
   name?: string
   email?: string
 }): Promise<BookViewingResult> {
-  const propertyId = String(input.propertyId || '').trim()
-  const viewingDate = String(input.viewingDate || '').trim()
-  const viewingTime = String(input.viewingTime || '').trim()
-
-  if (!propertyId || !viewingDate || !viewingTime) {
-    return { ok: false, error: 'missing' }
+  const parsed = parseForm(bookViewingSchema, {
+    propertyId: input.propertyId,
+    viewingDate: input.viewingDate,
+    viewingTime: input.viewingTime,
+  })
+  if (!parsed.ok) {
+    return { ok: false, error: Object.values(parsed.fieldErrors)[0] || 'missing' }
   }
 
-  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(viewingDate)
-  if (!dateOk) return { ok: false, error: 'date' }
-
+  const { propertyId, viewingDate, viewingTime } = parsed.data
   const propertyNumericId = Number(propertyId)
   if (!Number.isFinite(propertyNumericId)) {
     return { ok: false, error: 'property' }
@@ -33,6 +35,29 @@ export async function createViewingRequest(input: {
   try {
     const locale = await getLocale()
     const payload = await getPayloadClient()
+    const { user } = await payload.auth({ headers: await headers() })
+
+    let customerId: string | number | undefined
+    let name = input.name?.trim() || undefined
+    let email = input.email?.trim() || undefined
+
+    if (user && user.collection === 'customers') {
+      customerId = user.id
+      try {
+        const customer = await payload.findByID({
+          collection: 'customers',
+          id: user.id,
+          depth: 0,
+          overrideAccess: true,
+        })
+        name =
+          [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() || name
+        email = customer.email || email
+      } catch {
+        /* keep optional contact fields */
+      }
+    }
+
     const created = await payload.create({
       collection: 'viewing-requests',
       data: {
@@ -41,10 +66,11 @@ export async function createViewingRequest(input: {
         viewingTime,
         status: 'confirmed',
         locale,
-        name: input.name?.trim() || undefined,
-        email: input.email?.trim() || undefined,
+        customer: customerId,
+        name,
+        email,
       },
-      overrideAccess: false,
+      overrideAccess: true,
     })
     return { ok: true, id: String(created.id) }
   } catch (error) {

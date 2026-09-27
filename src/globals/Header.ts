@@ -37,7 +37,7 @@ export const Header: GlobalConfig = {
       name: 'signInLabel',
       type: 'text',
       localized: true,
-      defaultValue: 'Войти',
+      defaultValue: 'Войти / Регистрация',
       label: loc('Текст «Войти»', 'Sign in label'),
     },
     {
@@ -50,14 +50,14 @@ export const Header: GlobalConfig = {
       name: 'ctaLabel',
       type: 'text',
       localized: true,
-      defaultValue: 'Разместить объект',
-      label: loc('Текст кнопки', 'Button text'),
+      admin: { hidden: true },
+      label: loc('Текст кнопки (не используется)', 'Button text (unused)'),
     },
     {
       name: 'ctaHref',
       type: 'text',
-      defaultValue: '/list-property',
-      label: loc('Ссылка кнопки', 'Button link'),
+      admin: { hidden: true },
+      label: loc('Ссылка кнопки (не используется)', 'Button link (unused)'),
     },
   ],
 }

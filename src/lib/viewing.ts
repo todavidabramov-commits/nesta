@@ -80,6 +80,20 @@ export function propertyAddressLabel(address: string, neighborhood: string, city
   return city
 }
 
+export function pickNextViewing<
+  T extends { date: string; time: string; status: string },
+>(items: T[]): T | null {
+  const now = new Date()
+  const upcoming = items.filter((item) => {
+    if (item.status === 'cancelled') return false
+    const date = parseISODate(item.date)
+    const [hours, minutes] = item.time.split(':').map(Number)
+    date.setHours(hours || 0, minutes || 0, 0, 0)
+    return date.getTime() >= now.getTime() - 30 * 60 * 1000
+  })
+  return upcoming[0] || items.find((item) => item.status !== 'cancelled') || null
+}
+
 export function googleCalendarUrl(input: {
   title: string
   address: string

@@ -16,12 +16,15 @@ import { applyLiveGlobal, type CmsDoc } from '@/cms/map'
 import type { BookViewingView, PropertyView } from '@/cms/types'
 import { isCmsMedia } from '@/cms/utils'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { FieldError } from '@/components/forms/FieldError'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { SiteFooter } from '@/components/SiteFooter'
 import { SiteHeader } from '@/components/SiteHeader'
 import { useLiveGlobalEvent } from '@/components/LivePreviewListener'
+import { useFormValidation } from '@/hooks/useFormValidation'
 import { useLocale } from '@/i18n/locale-context'
 import { btnClass, cn } from '@/lib/ui'
+import { bookViewingSchema, validationMessage } from '@/lib/validation'
 import {
   VIEWING_SLOT_HOURS,
   formatConfirmWhen,
@@ -49,6 +52,8 @@ function defaultSelectedDate(preferred?: string): string {
 export function BookViewingLive({ initial }: { initial: BookViewingView }) {
   const { locale, messages } = useLocale()
   const t = messages.bookViewing
+  const v = messages.validation
+  const form = useFormValidation(bookViewingSchema)
 
   const liveGlobal = useLiveGlobalEvent()
   let header = initial.header
@@ -150,14 +155,21 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
   }
 
   function onConfirm() {
-    if (!property?.id) {
-      setError(t.noProperty)
+    const propertyId = property?.id ? String(property.id) : ''
+    if (
+      !form.validate({
+        propertyId,
+        viewingDate: selectedDate,
+        viewingTime: selectedTime,
+      })
+    ) {
+      setError(null)
       return
     }
     setError(null)
     startTransition(async () => {
       const result = await createViewingRequest({
-        propertyId: property.id,
+        propertyId,
         viewingDate: selectedDate,
         viewingTime: selectedTime,
       })
@@ -167,8 +179,13 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
       }
       setConfirmed(true)
       setSheetOpen(true)
+      form.clearAll()
     })
   }
+
+  const propertyMsg = validationMessage(form.error('propertyId'), v)
+  const dateMsg = validationMessage(form.error('viewingDate'), v)
+  const timeMsg = validationMessage(form.error('viewingTime'), v)
 
   const calendarHref = property
     ? googleCalendarUrl({
@@ -246,13 +263,19 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
             <label className="m-0 flex flex-col gap-2 text-xs font-bold uppercase tracking-[0.04em] text-muted">
               {t.pickProperty}
               <select
-                className="min-h-[42px] rounded-sm border border-line bg-surface-soft px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-ink"
+                className={cn(
+                  'min-h-[42px] rounded-sm border bg-surface-soft px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-ink',
+                  propertyMsg ? 'border-[#c45c4a]' : 'border-line',
+                )}
                 value={propertySlug}
                 onChange={(e) => {
                   setPropertySlug(e.target.value)
+                  form.clearField('propertyId')
                   setConfirmed(false)
                   setSheetOpen(false)
+                  setError(null)
                 }}
+                aria-invalid={Boolean(propertyMsg)}
               >
                 {initial.properties.map((p) => (
                   <option key={p.id || p.slug} value={p.slug}>
@@ -260,6 +283,7 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
                   </option>
                 ))}
               </select>
+              <FieldError message={propertyMsg} className="normal-case tracking-normal" />
             </label>
           ) : null}
 
@@ -311,8 +335,10 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
                       )}
                       onClick={() => {
                         setSelectedDate(iso)
+                        form.clearField('viewingDate')
                         setConfirmed(false)
                         setSheetOpen(false)
+                        setError(null)
                       }}
                     >
                       {day.getDate()}
@@ -344,8 +370,10 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
                     )}
                     onClick={() => {
                       setSelectedTime(slot)
+                      form.clearField('viewingTime')
                       setConfirmed(false)
                       setSheetOpen(false)
+                      setError(null)
                     }}
                   >
                     {formatSlotLabel(slot, locale)}
@@ -355,12 +383,21 @@ export function BookViewingLive({ initial }: { initial: BookViewingView }) {
             </div>
           </div>
 
-          {error ? <p className="m-0 text-sm text-[#8a3b2d]">{error}</p> : null}
+          <div className="flex flex-col gap-2">
+            <FieldError message={!showPropertyPick ? propertyMsg : undefined} />
+            <FieldError message={dateMsg} />
+            <FieldError message={timeMsg} />
+            {error ? (
+              <p className="m-0 text-sm text-[#8a3b2d] motion-safe:animate-[field-error-in_200ms_ease-out]">
+                {error}
+              </p>
+            ) : null}
+          </div>
 
           <button
             type="button"
             className={cn(btnClass('primary', 'block'), 'py-3.5 text-sm font-bold shadow-none')}
-            disabled={!property || pending}
+            disabled={pending}
             onClick={onConfirm}
           >
             {pending ? t.submitting : t.confirmCta}

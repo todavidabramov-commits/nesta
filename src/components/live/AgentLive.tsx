@@ -7,6 +7,7 @@ import { applyLiveGlobal, mapAgent, mapProperty, type CmsDoc } from '@/cms/map'
 import type { AgentDetailView, PropertyView } from '@/cms/types'
 import { isCmsMedia } from '@/cms/utils'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { FieldError, FieldLabel, fieldClassName } from '@/components/forms/FieldError'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { PropertyCard } from '@/components/PropertyCard'
 import { SiteFooter } from '@/components/SiteFooter'
@@ -16,8 +17,10 @@ import {
   useLiveCollectionList,
   useLiveGlobalEvent,
 } from '@/components/LivePreviewListener'
+import { useFormValidation } from '@/hooks/useFormValidation'
 import { useLocale } from '@/i18n/locale-context'
 import { btnClass, cn } from '@/lib/ui'
+import { inquireSchema, validationMessage } from '@/lib/validation'
 
 export function AgentLive({
   initial,
@@ -56,8 +59,17 @@ export function AgentLive({
   const firstName = agent.name.trim().split(/\s+/)[0] || agent.name
   const ratingLabel = `★ ${agent.rating.toFixed(1)} / 5.0`
   const soldLabel = t.homes.replace('{count}', String(agent.homesSold))
+  const v = messages.validation
+  const form = useFormValidation(inquireSchema)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const nameMsg = validationMessage(form.error('name'), v)
+  const emailMsg = validationMessage(form.error('email'), v)
+  const nameOk = name.trim().length > 1
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  const inquireFieldClass =
+    'min-h-11 rounded-sm border border-line bg-surface-soft px-3 py-2.5 text-[13px] text-ink outline-none placeholder:text-muted focus:border-forest'
 
   const crumbs = fromProperty
     ? [
@@ -76,7 +88,7 @@ export function AgentLive({
           ? [
               {
                 label: viewingT.breadcrumbCurrent,
-                href: `/viewings?property=${encodeURIComponent(fromProperty.slug)}`,
+                href: `/viewings/book?property=${encodeURIComponent(fromProperty.slug)}`,
               },
             ]
           : []),
@@ -90,7 +102,7 @@ export function AgentLive({
 
   function onInquire(event: FormEvent) {
     event.preventDefault()
-    if (!name.trim() || !email.trim()) return
+    if (!form.validate({ name, email })) return
     const subject = encodeURIComponent(`Inquiry for ${agent.name}`)
     const body = encodeURIComponent(`Name: ${name.trim()}\nEmail: ${email.trim()}`)
     const to = agent.email || 'info@nesta.nl'
@@ -188,7 +200,7 @@ export function AgentLive({
                     {t.listingsBy.replace('{name}', firstName)}
                   </span>
                 </h2>
-                <div className="grid grid-cols-2 gap-4 max-[700px]:gap-3">
+                <div className="property-cards-lift grid grid-cols-2 gap-4 max-[700px]:gap-3">
                   {properties.map((item) => (
                     <PropertyCard
                       key={item.id || item.slug}
@@ -211,26 +223,48 @@ export function AgentLive({
               <h2 className="m-0 mb-5 font-display text-[22px] font-normal max-[700px]:mb-4 max-[700px]:text-lg max-[700px]:font-medium">
                 {t.inquireWith.replace('{name}', firstName)}
               </h2>
-              <form className="flex flex-col gap-3" onSubmit={onInquire}>
+              <form className="flex flex-col gap-3" onSubmit={onInquire} noValidate>
                 <div className="grid grid-cols-2 gap-3 max-[700px]:grid-cols-1">
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t.yourName}
-                    className="min-h-11 rounded-sm border border-line bg-surface-soft px-3 py-2.5 text-[13px] text-ink outline-none placeholder:text-muted focus:border-forest"
-                  />
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t.email}
-                    className="min-h-11 rounded-sm border border-line bg-surface-soft px-3 py-2.5 text-[13px] text-ink outline-none placeholder:text-muted focus:border-forest"
-                  />
+                  <label className="flex flex-col gap-1.5">
+                    <FieldLabel ok={nameOk && !nameMsg}>{t.yourName}</FieldLabel>
+                    <input
+                      type="text"
+                      name="name"
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value)
+                        form.clearField('name')
+                      }}
+                      placeholder={t.yourName}
+                      aria-invalid={Boolean(nameMsg)}
+                      className={fieldClassName(
+                        inquireFieldClass,
+                        Boolean(nameMsg),
+                        nameOk && !nameMsg,
+                      )}
+                    />
+                    <FieldError message={nameMsg} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <FieldLabel ok={emailOk && !emailMsg}>{t.email}</FieldLabel>
+                    <input
+                      type="email"
+                      name="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        form.clearField('email')
+                      }}
+                      placeholder={t.email}
+                      aria-invalid={Boolean(emailMsg)}
+                      className={fieldClassName(
+                        inquireFieldClass,
+                        Boolean(emailMsg),
+                        emailOk && !emailMsg,
+                      )}
+                    />
+                    <FieldError message={emailMsg} />
+                  </label>
                 </div>
                 <button type="submit" className={btnClass('primary', 'block')}>
                   {t.contactCta.replace('{name}', firstName)}

@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
 import React from 'react'
 
+import { AppToaster } from '@/components/AppToaster'
 import { LivePreviewListener } from '@/components/LivePreviewListener'
 import { CompareProvider } from '@/components/CompareProvider'
+import { CustomerProvider } from '@/components/CustomerProvider'
+import { FavoritesProvider } from '@/components/FavoritesProvider'
 import { getLocale } from '@/i18n/get-locale'
 import { LocaleProvider } from '@/i18n/locale-context'
 import { getMessages } from '@/i18n/messages'
+import { getCustomerSession } from '@/lib/customer-auth'
 
 import '@/tailwind.css'
 import './styles.css'
@@ -29,6 +33,7 @@ export const viewport = {
 
 export default async function FrontendLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale()
+  const customer = await getCustomerSession()
 
   return (
     <html lang={locale}>
@@ -42,9 +47,14 @@ export default async function FrontendLayout({ children }: { children: React.Rea
       </head>
       <body>
         <LocaleProvider locale={locale}>
-          <CompareProvider>
-            <LivePreviewListener>{children}</LivePreviewListener>
-          </CompareProvider>
+          <CustomerProvider customer={customer}>
+            <FavoritesProvider>
+              <CompareProvider>
+                <LivePreviewListener>{children}</LivePreviewListener>
+                <AppToaster />
+              </CompareProvider>
+            </FavoritesProvider>
+          </CustomerProvider>
         </LocaleProvider>
       </body>
     </html>

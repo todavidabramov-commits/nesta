@@ -11,7 +11,7 @@ const ITEMS = [
   { key: 'search' as const, href: '/buy', Icon: SearchIcon },
   { key: 'favorites' as const, href: '/favorites', Icon: HeartIcon },
   { key: 'viewings' as const, href: '/viewings', Icon: CalendarIcon },
-  { key: 'profile' as const, href: '/sign-in', Icon: UserIcon },
+  { key: 'profile' as const, href: '/dashboard?section=profile', Icon: UserIcon },
 ]
 
 export function MobileBottomNav() {
@@ -25,7 +25,12 @@ export function MobileBottomNav() {
     >
       <div className="flex h-16 items-center justify-between px-4">
         {ITEMS.map((item) => {
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+          const active =
+            item.key === 'profile'
+              ? pathname.startsWith('/dashboard')
+              : item.href === '/'
+                ? pathname === '/'
+                : pathname.startsWith(item.href.split('?')[0] || item.href)
           const label = messages.mobileNav[item.key]
           return (
             <Link

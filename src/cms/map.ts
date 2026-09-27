@@ -163,23 +163,42 @@ export function mapNeighborhood(doc: CmsDoc): NeighborhoodView {
 }
 
 export function mapHeader(doc: CmsDoc, initial?: HeaderView): HeaderView {
-  const nav = Array.isArray(doc.nav)
-    ? doc.nav.map((item, index) => {
-        const row = (item || {}) as CmsDoc
-        const fallback = initial?.nav[index]
-        return {
-          label: text(row.label, fallback?.label || ''),
-          href: text(row.href, fallback?.href || '#'),
-        }
+  const fallbackNav = initial?.nav || []
+  const cmsByHref = new Map<string, { label: string; href: string }>()
+
+  if (Array.isArray(doc.nav)) {
+    for (const item of doc.nav) {
+      const row = (item || {}) as CmsDoc
+      const href = text(row.href, '')
+      if (!href || href === '/new-developments' || href.includes('/new-developments')) continue
+      if (/новострой|new developments/i.test(String(row.label || ''))) continue
+      cmsByHref.set(href, {
+        label: text(row.label, ''),
+        href,
       })
-    : initial?.nav || []
+    }
+  }
+
+  const nav = fallbackNav.map((fallback) => {
+    const cms = cmsByHref.get(fallback.href)
+    return {
+      label: (cms?.label && cms.label.trim()) || fallback.label,
+      href: fallback.href,
+    }
+  })
+
+  for (const [href, item] of cmsByHref) {
+    if (fallbackNav.some((entry) => entry.href === href)) continue
+    if (!item.label.trim()) continue
+    nav.push(item)
+  }
 
   return {
     nav,
     signInLabel: text(doc.signInLabel, initial?.signInLabel || 'Sign in'),
     signInHref: text(doc.signInHref, initial?.signInHref || '/sign-in'),
-    ctaLabel: text(doc.ctaLabel, initial?.ctaLabel || 'List a property'),
-    ctaHref: text(doc.ctaHref, initial?.ctaHref || '/list-property'),
+    ctaLabel: '',
+    ctaHref: '',
   }
 }
 
@@ -200,7 +219,12 @@ export function mapFooter(doc: CmsDoc, initial?: FooterView): FooterView {
           : fallbackCol?.links || []
         return {
           title: text(row.title, fallbackCol?.title || ''),
-          links,
+          links: links.filter(
+            (item) =>
+              item.href &&
+              !item.href.includes('/new-developments') &&
+              !/новострой|new developments/i.test(item.label),
+          ),
         }
       })
     : initial?.columns || []

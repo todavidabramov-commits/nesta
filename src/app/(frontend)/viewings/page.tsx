@@ -1,23 +1,25 @@
-import { getBookViewingView } from '@/cms/queries'
-import { BookViewingLive } from '@/components/live/BookViewingLive'
+import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+
+import { getViewingsView } from '@/cms/queries'
+import { ViewingsLive } from '@/components/live/ViewingsLive'
 import { getLocale } from '@/i18n/get-locale'
+import { getMessages } from '@/i18n/messages'
+import { getCustomerSession } from '@/lib/customer-auth'
 
-type Props = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getMessages(await getLocale()).viewings
+  return {
+    title: t.title,
+    description: t.lead,
+  }
 }
 
-function one(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0]
-  return value
-}
-
-export default async function ViewingsPage({ searchParams }: Props) {
+export default async function ViewingsPage() {
   const locale = await getLocale()
-  const params = await searchParams
-  const view = await getBookViewingView(locale, {
-    propertySlug: one(params.property) || one(params.slug),
-    date: one(params.date),
-    time: one(params.time),
-  })
-  return <BookViewingLive initial={view} />
+  const customer = await getCustomerSession()
+  if (!customer) redirect('/sign-in')
+
+  const view = await getViewingsView(locale, customer.id)
+  return <ViewingsLive initial={view} />
 }

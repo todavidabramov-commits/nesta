@@ -2,6 +2,20 @@ import type { CollectionConfig } from 'payload'
 
 import { loc } from '../i18n/label'
 
+const isAdminUser = ({ req }: { req: { user?: { collection?: string } | null } }) =>
+  Boolean(req.user && req.user.collection === 'users')
+
+const isSelfCustomer = ({
+  req,
+}: {
+  req: { user?: { id?: string | number; collection?: string } | null }
+}) => {
+  if (req.user?.collection === 'customers' && req.user.id != null) {
+    return { customer: { equals: req.user.id } }
+  }
+  return false
+}
+
 export const ViewingRequests: CollectionConfig = {
   slug: 'viewing-requests',
   labels: {
@@ -10,17 +24,18 @@ export const ViewingRequests: CollectionConfig = {
   },
   admin: {
     useAsTitle: 'summary',
-    defaultColumns: ['summary', 'viewingDate', 'viewingTime', 'status', 'createdAt'],
+    defaultColumns: ['summary', 'viewingDate', 'viewingTime', 'status', 'customer', 'createdAt'],
     description: loc(
       'Заявки с публичной страницы записи на просмотр.',
       'Requests from the public book-viewing page.',
     ),
+    group: loc('Сайт', 'Site'),
   },
   access: {
     create: () => true,
-    read: ({ req }) => Boolean(req.user),
-    update: ({ req }) => Boolean(req.user),
-    delete: ({ req }) => Boolean(req.user),
+    read: ({ req }) => isAdminUser({ req }) || isSelfCustomer({ req }),
+    update: ({ req }) => isAdminUser({ req }) || isSelfCustomer({ req }),
+    delete: isAdminUser,
   },
   fields: [
     {
@@ -35,6 +50,18 @@ export const ViewingRequests: CollectionConfig = {
       relationTo: 'properties',
       required: true,
       label: loc('Объект', 'Property'),
+    },
+    {
+      name: 'customer',
+      type: 'relationship',
+      relationTo: 'customers',
+      label: loc('Клиент', 'Customer'),
+      admin: {
+        description: loc(
+          'Аккаунт клиента, если заявка создана после входа.',
+          'Customer account when the request was made while signed in.',
+        ),
+      },
     },
     {
       name: 'viewingDate',

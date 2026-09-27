@@ -113,6 +113,43 @@ export type NeighborhoodView = {
   name: string
 }
 
+export type NeighborhoodGuideCard = NeighborhoodView & {
+  vibe: string
+  summary: string
+  coverUrl: string
+  coverAlt: string
+  avgBuy: string
+  avgRent: string
+  activeCount: number
+  lifestyle: Array<'historic' | 'bohemian' | 'waterfront' | 'family' | 'creative'>
+}
+
+export type NeighborhoodGuideDetail = NeighborhoodGuideCard & {
+  heroUrl: string
+  heroAlt: string
+  headline: string
+  body: string
+  stats: Array<{ label: string; value: string }>
+  transit: Array<{ label: string; icon: 'transit' | 'bike' }>
+  sections: Array<{ title: string; body: string }>
+}
+
+export type NeighborhoodsDirectoryView = {
+  neighborhoods: NeighborhoodGuideCard[]
+  highestValuationName: string
+  header: HeaderView
+  footer: FooterView
+  settings: SiteSettingsView
+}
+
+export type NeighborhoodDetailPageView = {
+  neighborhood: NeighborhoodGuideDetail
+  properties: PropertyView[]
+  header: HeaderView
+  footer: FooterView
+  settings: SiteSettingsView
+}
+
 export type PropertyFilters = {
   listingType?: 'buy' | 'rent'
   propertyType?: string[]
@@ -164,6 +201,13 @@ export type CompareView = {
   settings: SiteSettingsView
 }
 
+export type FavoritesView = {
+  properties: PropertyView[]
+  header: HeaderView
+  footer: FooterView
+  settings: SiteSettingsView
+}
+
 export type BookViewingView = {
   property: PropertyView | null
   properties: PropertyView[]
@@ -173,6 +217,53 @@ export type BookViewingView = {
   propertyLocked: boolean
   initialDate?: string
   initialTime?: string
+}
+
+export type ViewingItemView = {
+  id: string
+  date: string
+  time: string
+  status: 'new' | 'confirmed' | 'cancelled'
+  whenLabel: string
+  property: PropertyView
+}
+
+export type ViewingsView = {
+  items: ViewingItemView[]
+  header: HeaderView
+  footer: FooterView
+  settings: SiteSettingsView
+}
+
+export type DashboardView = {
+  favorites: PropertyView[]
+  viewings: ViewingItemView[]
+  messages: CustomerMessageView[]
+  savedSearches: SavedSearchView[]
+  header: HeaderView
+  footer: FooterView
+  settings: SiteSettingsView
+}
+
+export type CustomerMessageView = {
+  id: string
+  title: string
+  body: string
+  read: boolean
+  createdAt: string
+  createdLabel: string
+}
+
+export type SavedSearchView = {
+  id: string
+  title: string
+  detail: string
+  purpose: 'buy' | 'rent'
+  priorities: string[]
+  budgetMin: number
+  budgetMax: number
+  bedrooms: number
+  href: string
 }
 
 export type HomePageView = {

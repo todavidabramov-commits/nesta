@@ -81,8 +81,8 @@ export function HomeLive({ initial }: { initial: HomeView }) {
               <ArrowIcon />
             </Link>
           </div>
-          <div className="home-featured grid grid-cols-4 gap-6 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1 max-[700px]:gap-4">
-            {properties.map((property) => (
+          <div className="property-cards-lift grid grid-cols-4 gap-6 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1 max-[700px]:gap-4">
+            {properties.slice(0, 4).map((property) => (
               <PropertyCard
                 key={property.id || property.slug || `property-${property.title}`}
                 property={property}
@@ -110,12 +110,10 @@ function SearchBox() {
   const [maxPrice, setMaxPrice] = useState('')
   const [beds, setBeds] = useState('')
 
-  const neighborhoodOptions: SelectOption[] = [
-    { value: 'jordaan', label: 'Jordaan' },
-    { value: 'oud-zuid', label: 'Oud-Zuid' },
-    { value: 'grachtengordel', label: 'Grachtengordel' },
-    { value: 'de-pijp', label: 'De Pijp' },
-  ]
+  const neighborhoodOptions: SelectOption[] = messages.search.fallbackNeighborhoods.map((item) => ({
+    value: item.slug,
+    label: item.name,
+  }))
 
   const typeOptions: SelectOption[] = [
     { value: 'apartment', label: search.propertyTypes.apartment },

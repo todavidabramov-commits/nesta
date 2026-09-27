@@ -1,12 +1,13 @@
 'use client'
 
-import { MapPin } from 'lucide-react'
+import { Heart, MapPin } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
 import type { PropertyView } from '@/cms/types'
 import { isCmsMedia } from '@/cms/utils'
 import { useCompare } from '@/components/CompareProvider'
+import { useFavorites } from '@/components/FavoritesProvider'
 import { useLocale } from '@/i18n/locale-context'
 import { formatPropertyPrice } from '@/lib/format-price'
 import { cn } from '@/lib/ui'
@@ -40,9 +41,12 @@ export function PropertyCard({
   const unoptimized = property.coverUrl ? isCmsMedia(property.coverUrl) : true
   const { messages } = useLocale()
   const compare = useCompare()
+  const favorites = useFavorites()
   const selected = compare.has(property.slug)
   const blocked = !selected && compare.isFull
   const showActions = (showCompare || onShowOnMap) && variant !== 'map'
+  const favorited = favorites.has(property.id)
+  const showFavorite = favorites.isAuthenticated
 
   return (
     <div
@@ -53,6 +57,32 @@ export function PropertyCard({
         selected && showCompare && 'border-forest',
       )}
     >
+      {showFavorite ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            favorites.toggle(property.id)
+          }}
+          className={cn(
+            'absolute right-3 top-3 z-10 inline-flex size-9 items-center justify-center rounded-full border-0 shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-colors',
+            favorited
+              ? 'bg-forest text-surface'
+              : 'bg-surface/95 text-forest hover:bg-surface',
+            variant === 'map' && 'right-2 top-2 size-8',
+          )}
+          aria-label={favorited ? messages.favorites.remove : messages.favorites.add}
+          aria-pressed={favorited}
+        >
+          <Heart
+            className={cn(variant === 'map' ? 'size-4' : 'size-[18px]', favorited && 'fill-current')}
+            strokeWidth={1.8}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+
       <Link href={`/properties/${property.slug}`} className="flex min-h-0 flex-1 flex-col text-inherit no-underline">
         <div
           className={cn(

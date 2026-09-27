@@ -64,15 +64,18 @@ export type SupportedTimezones =
 export interface Config {
   auth: {
     users: UserAuthOperations;
+    customers: CustomerAuthOperations;
   };
   blocks: {};
   collections: {
     users: User;
+    customers: Customer;
     media: Media;
     properties: Property;
     neighborhoods: Neighborhood;
     pages: Page;
     'viewing-requests': ViewingRequest;
+    'customer-messages': CustomerMessage;
     agents: Agent;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -82,11 +85,13 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    customers: CustomersSelect<false> | CustomersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     properties: PropertiesSelect<false> | PropertiesSelect<true>;
     neighborhoods: NeighborhoodsSelect<false> | NeighborhoodsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     'viewing-requests': ViewingRequestsSelect<false> | ViewingRequestsSelect<true>;
+    'customer-messages': CustomerMessagesSelect<false> | CustomerMessagesSelect<true>;
     agents: AgentsSelect<false> | AgentsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -111,7 +116,7 @@ export interface Config {
   widgets: {
     collections: CollectionsWidget;
   };
-  user: User;
+  user: User | Customer;
   jobs: {
     tasks: unknown;
     workflows: unknown;
@@ -135,7 +140,27 @@ export interface UserAuthOperations {
     password: string;
   };
 }
+export interface CustomerAuthOperations {
+  forgotPassword: {
+    email: string;
+    password: string;
+  };
+  login: {
+    email: string;
+    password: string;
+  };
+  registerFirstUser: {
+    email: string;
+    password: string;
+  };
+  unlock: {
+    email: string;
+    password: string;
+  };
+}
 /**
+ * Users of the /admin panel. Site customers live in the Customers collection.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
@@ -159,6 +184,56 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
+}
+/**
+ * Site customers (register / sign-in). No access to the CMS admin.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers".
+ */
+export interface Customer {
+  id: number;
+  firstName: string;
+  lastName: string;
+  avatar?: (number | null) | Media;
+  intent?: ('buy' | 'rent') | null;
+  newsletter?: boolean | null;
+  /**
+   * Properties saved by the customer on the site.
+   */
+  favorites?: (number | Property)[] | null;
+  /**
+   * Smart matching criteria saved by the customer.
+   */
+  savedSearches?:
+    | {
+        title: string;
+        purpose: 'buy' | 'rent';
+        priorities?: ('space' | 'quiet' | 'transit' | 'schools' | 'center' | 'outdoor' | 'parking')[] | null;
+        budgetMin: number;
+        budgetMax: number;
+        bedrooms: number;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'customers';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -326,6 +401,10 @@ export interface ViewingRequest {
   id: number;
   summary?: string | null;
   property: number | Property;
+  /**
+   * Customer account when the request was made while signed in.
+   */
+  customer?: (number | null) | Customer;
   viewingDate: string;
   viewingTime: string;
   status: 'new' | 'confirmed' | 'cancelled';
@@ -333,6 +412,28 @@ export interface ViewingRequest {
   name?: string | null;
   email?: string | null;
   notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Only admins can send messages. Customers see them in cabinet → Messages.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-messages".
+ */
+export interface CustomerMessage {
+  id: number;
+  title: string;
+  body: string;
+  /**
+   * Who receives this in their cabinet inbox.
+   */
+  customer: number | Customer;
+  /**
+   * Customer marks as read in the cabinet. Admins can reset.
+   */
+  read?: boolean | null;
+  readAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -365,6 +466,10 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
+        relationTo: 'customers';
+        value: number | Customer;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
@@ -385,14 +490,23 @@ export interface PayloadLockedDocument {
         value: number | ViewingRequest;
       } | null)
     | ({
+        relationTo: 'customer-messages';
+        value: number | CustomerMessage;
+      } | null)
+    | ({
         relationTo: 'agents';
         value: number | Agent;
       } | null);
   globalSlug?: string | null;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'customers';
+        value: number | Customer;
+      };
   updatedAt: string;
   createdAt: string;
 }
@@ -402,10 +516,15 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: number;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'customers';
+        value: number | Customer;
+      };
   key?: string | null;
   value?:
     | {
@@ -435,6 +554,45 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
+    | T
+    | {
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers_select".
+ */
+export interface CustomersSelect<T extends boolean = true> {
+  firstName?: T;
+  lastName?: T;
+  avatar?: T;
+  intent?: T;
+  newsletter?: T;
+  favorites?: T;
+  savedSearches?:
+    | T
+    | {
+        title?: T;
+        purpose?: T;
+        priorities?: T;
+        budgetMin?: T;
+        budgetMax?: T;
+        bedrooms?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -575,6 +733,7 @@ export interface PagesSelect<T extends boolean = true> {
 export interface ViewingRequestsSelect<T extends boolean = true> {
   summary?: T;
   property?: T;
+  customer?: T;
   viewingDate?: T;
   viewingTime?: T;
   status?: T;
@@ -582,6 +741,19 @@ export interface ViewingRequestsSelect<T extends boolean = true> {
   name?: T;
   email?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-messages_select".
+ */
+export interface CustomerMessagesSelect<T extends boolean = true> {
+  title?: T;
+  body?: T;
+  customer?: T;
+  read?: T;
+  readAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

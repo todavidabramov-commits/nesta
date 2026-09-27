@@ -2,12 +2,16 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { toast } from 'sonner'
 
+import { saveMatchingSearch } from '@/app/(frontend)/actions/saved-searches'
 import { applyLiveGlobal, type CmsDoc } from '@/cms/map'
 import type { MatchingView } from '@/cms/types'
 import { isCmsMedia } from '@/cms/utils'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { useCustomer } from '@/components/CustomerProvider'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { SiteFooter } from '@/components/SiteFooter'
 import { SiteHeader } from '@/components/SiteHeader'
@@ -17,6 +21,7 @@ import { formatPropertyPrice } from '@/lib/format-price'
 import {
   budgetBounds,
   formatBudgetShort,
+  parseMatchingPrefsFromSearchParams,
   rankMatches,
   type MatchingPriorityId,
   type MatchingPurpose,
@@ -39,7 +44,15 @@ const TOTAL_STEPS = 4
 
 type Step = 1 | 2 | 3 | 4 | 5
 
-export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
+export function SmartMatchingLive({
+  initial,
+  initialQuery = {},
+}: {
+  initial: MatchingView
+  initialQuery?: Record<string, string | string[] | undefined>
+}) {
+  const router = useRouter()
+  const { customer } = useCustomer()
   const { locale, messages } = useLocale()
   const t = messages.matching
   const home = messages.home
@@ -55,14 +68,47 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
     settings = next.settings
   }
 
+  const bootstrapped = useRef(false)
+  const fromUrl = useMemo(
+    () => parseMatchingPrefsFromSearchParams(initialQuery),
+    [initialQuery],
+  )
+
   const [step, setStep] = useState<Step>(1)
-  const [purpose, setPurpose] = useState<MatchingPurpose>('buy')
+  const [purpose, setPurpose] = useState<MatchingPurpose>(fromUrl.purpose || 'buy')
   const bounds = budgetBounds(purpose)
-  const [budgetMin, setBudgetMin] = useState(300_000)
-  const [budgetMax, setBudgetMax] = useState(600_000)
-  const [bedrooms, setBedrooms] = useState(2)
-  const [priorities, setPriorities] = useState<MatchingPriorityId[]>(['space', 'quiet', 'outdoor'])
+  const [budgetMin, setBudgetMin] = useState(
+    fromUrl.budgetMin ?? (fromUrl.purpose === 'rent' ? 2_000 : 300_000),
+  )
+  const [budgetMax, setBudgetMax] = useState(
+    fromUrl.budgetMax ?? (fromUrl.purpose === 'rent' ? 4_000 : 600_000),
+  )
+  const [bedrooms, setBedrooms] = useState(fromUrl.bedrooms ?? 2)
+  const [priorities, setPriorities] = useState<MatchingPriorityId[]>(
+    fromUrl.priorities || ['space', 'quiet', 'outdoor'],
+  )
   const [matches, setMatches] = useState<MatchedProperty[]>([])
+  const [saved, setSaved] = useState(false)
+  const [pendingSave, startSave] = useTransition()
+
+  useEffect(() => {
+    if (bootstrapped.current) return
+    bootstrapped.current = true
+    if (!fromUrl.run) return
+
+    const prefs = {
+      purpose: fromUrl.purpose || 'buy',
+      priorities: fromUrl.priorities?.length
+        ? fromUrl.priorities
+        : (['space', 'quiet', 'outdoor'] as MatchingPriorityId[]),
+      budgetMin: fromUrl.budgetMin ?? (fromUrl.purpose === 'rent' ? 2_000 : 300_000),
+      budgetMax: fromUrl.budgetMax ?? (fromUrl.purpose === 'rent' ? 4_000 : 600_000),
+      bedrooms: fromUrl.bedrooms ?? 2,
+    }
+    setMatches(rankMatches(initial.properties, prefs, locale, 4))
+    setStep(5)
+    setSaved(true)
+  }, [fromUrl, initial.properties, locale])
 
   const crumbs = useMemo(
     () => [
@@ -84,6 +130,7 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
 
   function setPurposeAndBudget(next: MatchingPurpose) {
     setPurpose(next)
+    setSaved(false)
     if (next === 'rent') {
       setBudgetMin(2_000)
       setBudgetMax(4_000)
@@ -94,6 +141,7 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
   }
 
   function togglePriority(id: MatchingPriorityId) {
+    setSaved(false)
     setPriorities((prev) => {
       if (prev.includes(id)) return prev.filter((p) => p !== id)
       if (prev.length >= 3) return prev
@@ -102,10 +150,12 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
   }
 
   function onBudgetMin(value: number) {
+    setSaved(false)
     setBudgetMin(Math.min(value, budgetMax - bounds.step))
   }
 
   function onBudgetMax(value: number) {
+    setSaved(false)
     setBudgetMax(Math.max(value, budgetMin + bounds.step))
   }
 
@@ -118,10 +168,45 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
     )
     setMatches(next)
     setStep(5)
+    setSaved(false)
   }
 
   function refine() {
     setStep(1)
+    setSaved(false)
+  }
+
+  function onSave() {
+    if (!customer) {
+      toast(t.saveGuestTitle, {
+        description: t.saveGuest,
+        action: {
+          label: t.saveGuestAction,
+          onClick: () => router.push('/sign-in?next=/matching'),
+        },
+      })
+      return
+    }
+    if (pendingSave || saved) return
+
+    startSave(async () => {
+      const result = await saveMatchingSearch({
+        prefs: { purpose, priorities, budgetMin, budgetMax, bedrooms },
+        locale: locale === 'en' ? 'en' : 'ru',
+      })
+      if (!result.ok) {
+        if (result.error === 'duplicate') {
+          setSaved(true)
+          toast.success(t.saveDuplicate)
+          return
+        }
+        toast.error(t.saveError)
+        return
+      }
+      setSaved(true)
+      toast.success(t.saveSuccess)
+      router.refresh()
+    })
   }
 
   const purposeShort = purpose === 'buy' ? t.purposeShortBuy : t.purposeShortRent
@@ -134,6 +219,34 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
   const summaryStep2 = `${purposeShort} • ${t.prioritiesSelected.replace('{count}', String(priorities.length))}`
   const summaryStep3 = `${purposeShort} • ${priorityLabels.join(', ') || '—'}`
   const summaryStep4 = `${purposeShort} • ${budgetRange} • ${priorityShortLabels.join(', ') || '—'}`
+
+  const saveButton = (
+    <div className="flex flex-col items-stretch gap-2 max-[900px]:w-full">
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={pendingSave || (Boolean(customer) && saved)}
+        className={cn(
+          btnClass('primary', 'sm'),
+          'shadow-none disabled:cursor-not-allowed disabled:opacity-60 max-[700px]:w-full',
+        )}
+      >
+        {saved ? t.saved : pendingSave ? t.saving : t.save}
+      </button>
+      {!customer ? (
+        <p className="m-0 max-w-xs text-right text-[12px] leading-snug text-muted max-[900px]:max-w-none max-[900px]:text-left">
+          {t.saveGuest}{' '}
+          <Link href="/sign-in?next=/matching" className="font-semibold text-forest no-underline">
+            {t.saveGuestAction}
+          </Link>
+          {' / '}
+          <Link href="/register" className="font-semibold text-forest no-underline">
+            {t.saveGuestRegister}
+          </Link>
+        </p>
+      ) : null}
+    </div>
+  )
 
   return (
     <div className="flex min-h-screen flex-col max-[700px]:pb-[72px]">
@@ -152,7 +265,7 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
                 </h1>
                 <p className="m-0 text-base text-muted max-[700px]:text-sm">{t.resultsLead}</p>
               </header>
-              <div className="flex shrink-0 gap-3 max-[700px]:w-full max-[700px]:flex-col">
+              <div className="flex shrink-0 items-start gap-3 max-[700px]:w-full max-[700px]:flex-col">
                 <button
                   type="button"
                   onClick={refine}
@@ -160,12 +273,7 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
                 >
                   {t.refine}
                 </button>
-                <Link
-                  href={purpose === 'buy' ? '/buy' : '/rent'}
-                  className={cn(btnClass('primary', 'sm'), 'no-underline shadow-none max-[700px]:w-full')}
-                >
-                  {t.compareSave}
-                </Link>
+                {saveButton}
               </div>
             </div>
 
@@ -372,7 +480,10 @@ export function SmartMatchingLive({ initial }: { initial: MatchingView }) {
                           <button
                             key={n}
                             type="button"
-                            onClick={() => setBedrooms(n)}
+                            onClick={() => {
+                              setSaved(false)
+                              setBedrooms(n)
+                            }}
                             className={cn(
                               'flex h-20 items-center justify-center rounded-lg border text-[22px] font-bold transition-colors max-[700px]:h-14 max-[700px]:text-lg',
                               bedrooms === n

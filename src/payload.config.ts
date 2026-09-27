@@ -9,11 +9,13 @@ import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
 import { Users } from './collections/Users'
+import { Customers } from './collections/Customers'
 import { Media } from './collections/Media'
 import { Properties } from './collections/Properties'
 import { Neighborhoods } from './collections/Neighborhoods'
 import { Pages } from './collections/Pages'
 import { ViewingRequests } from './collections/ViewingRequests'
+import { CustomerMessages } from './collections/CustomerMessages'
 import { Agents } from './collections/Agents'
 import { SiteSettings } from './globals/SiteSettings'
 import { Header } from './globals/Header'
@@ -69,7 +71,17 @@ export default buildConfig({
       { code: 'en', label: 'English' },
     ],
   },
-  collections: [Users, Media, Properties, Neighborhoods, Pages, ViewingRequests, Agents],
+  collections: [
+    Users,
+    Customers,
+    Media,
+    Properties,
+    Neighborhoods,
+    Pages,
+    ViewingRequests,
+    CustomerMessages,
+    Agents,
+  ],
   globals: [SiteSettings, Header, Footer],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import type { HeaderView } from '@/cms/types'
+import { CustomerAccountBadge } from '@/components/CustomerAccountBadge'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { NestaLogo } from '@/components/NestaLogo'
+import { useCustomer } from '@/components/CustomerProvider'
 import { useLocale } from '@/i18n/locale-context'
-import { btnClass, cn } from '@/lib/ui'
+import { cn } from '@/lib/ui'
 
 const navLinkClass =
   'relative rounded-sm px-2.5 py-2 text-sm font-medium text-muted transition-colors duration-[220ms] hover:text-forest focus-visible:text-forest focus-visible:outline-none after:absolute after:bottom-[5px] after:left-1/2 after:h-[1.5px] after:w-0 after:-translate-x-1/2 after:rounded-sm after:bg-gradient-to-r after:from-accent after:to-forest after:transition-[width] after:duration-[320ms] after:ease-[cubic-bezier(0.22,1,0.36,1)] hover:after:w-[calc(100%-20px)] focus-visible:after:w-[calc(100%-20px)] motion-reduce:transition-none motion-reduce:after:transition-none'
@@ -22,7 +24,10 @@ const iconBtnClass =
 export function SiteHeader({ header }: { header: HeaderView }) {
   const pathname = usePathname()
   const { messages } = useLocale()
+  const { customer } = useCustomer()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const accountHref = customer ? '/dashboard' : header.signInHref
 
   useEffect(() => {
     setMenuOpen(false)
@@ -40,6 +45,14 @@ export function SiteHeader({ header }: { header: HeaderView }) {
       document.removeEventListener('keydown', onKey)
     }
   }, [menuOpen])
+
+  const accountControl = customer ? (
+    <CustomerAccountBadge customer={customer} href="/dashboard" size="sm" nameOnly withSignOut />
+  ) : (
+    <Link href={accountHref} className={signInClass}>
+      {messages.header.signIn}
+    </Link>
+  )
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface">
@@ -69,12 +82,7 @@ export function SiteHeader({ header }: { header: HeaderView }) {
 
         <div className="flex shrink-0 items-center gap-4 max-[1100px]:hidden">
           <LanguageSwitcher />
-          <Link href={header.signInHref} className={signInClass}>
-            {header.signInLabel}
-          </Link>
-          <Link href={header.ctaHref} className={btnClass('primary', 'sm')}>
-            {header.ctaLabel}
-          </Link>
+          {accountControl}
         </div>
 
         <div className="hidden shrink-0 items-center gap-4 max-[1100px]:flex">
@@ -109,16 +117,20 @@ export function SiteHeader({ header }: { header: HeaderView }) {
           </nav>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <LanguageSwitcher />
-            <Link href={header.signInHref} className={signInClass} onClick={() => setMenuOpen(false)}>
-              {header.signInLabel}
-            </Link>
-            <Link
-              href={header.ctaHref}
-              className={btnClass('primary', 'sm')}
-              onClick={() => setMenuOpen(false)}
-            >
-              {header.ctaLabel}
-            </Link>
+            {customer ? (
+              <CustomerAccountBadge
+                customer={customer}
+                href="/dashboard"
+                size="sm"
+                nameOnly
+                withSignOut
+                className="max-[1100px]:max-w-[280px]"
+              />
+            ) : (
+              <Link href={accountHref} className={signInClass} onClick={() => setMenuOpen(false)}>
+                {messages.header.signIn}
+              </Link>
+            )}
           </div>
         </div>
       ) : null}

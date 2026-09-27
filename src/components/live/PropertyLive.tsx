@@ -9,6 +9,7 @@ import { applyLiveGlobal, mapProperty, type CmsDoc } from '@/cms/map'
 import type { PropertyDetailView } from '@/cms/types'
 import { isCmsMedia } from '@/cms/utils'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { useCustomer } from '@/components/CustomerProvider'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { PropertyCard } from '@/components/PropertyCard'
 import { SiteFooter } from '@/components/SiteFooter'
@@ -29,6 +30,7 @@ const PropertyLocationMap = dynamic(
 
 export function PropertyLive({ initial }: { initial: PropertyDetailView }) {
   const { locale, messages } = useLocale()
+  const { customer } = useCustomer()
   const t = messages.property
 
   const property = useLiveCollection('properties', initial.property, (doc, prev) =>
@@ -57,7 +59,10 @@ export function PropertyLive({ initial }: { initial: PropertyDetailView }) {
   const backHref = (property.listingType === 'rent' ? '/rent' : '/buy') as '/buy' | '/rent'
   const agent = property.agent
   const agentFirstName = agent?.name?.trim().split(/\s+/)[0] || agent?.name || ''
-  const viewingHref = `/viewings?property=${encodeURIComponent(property.slug)}`
+  const viewingHref = `/viewings/book?property=${encodeURIComponent(property.slug)}`
+  const scheduleHref = customer
+    ? viewingHref
+    : `/sign-in?next=${encodeURIComponent(viewingHref)}`
   const agentHref = agent
     ? `/agents/${agent.slug}?from=${encodeURIComponent(property.slug)}`
     : ''
@@ -278,11 +283,8 @@ export function PropertyLive({ initial }: { initial: PropertyDetailView }) {
             <aside className="property-aside">
               <div className="property-booking">
                 <h2>{t.scheduleTitle}</h2>
-                <Link
-                  href={viewingHref}
-                  className={btnClass('primary', 'block')}
-                >
-                  {t.scheduleCta}
+                <Link href={scheduleHref} className={btnClass('primary', 'block')}>
+                  {customer ? t.scheduleCta : t.scheduleAuthCta}
                 </Link>
                 {agent ? (
                   <>
@@ -338,7 +340,7 @@ export function PropertyLive({ initial }: { initial: PropertyDetailView }) {
           {related.length > 0 ? (
             <section className="mt-16">
               <h2 className="mb-6 font-display text-[28px] font-medium">{t.similar}</h2>
-              <div className="grid grid-cols-4 gap-6 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1">
+              <div className="property-cards-lift grid grid-cols-4 gap-6 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1">
                 {related.map((item) => (
                   <PropertyCard
                     key={item.id || item.slug || `related-${item.title}`}

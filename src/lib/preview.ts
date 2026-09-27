@@ -5,7 +5,8 @@ const COLLECTION_PATH: Record<string, (data: Record<string, unknown>) => string>
     typeof data.slug === 'string' && data.slug ? `/properties/${data.slug}` : '/',
   agents: (data) =>
     typeof data.slug === 'string' && data.slug ? `/agents/${data.slug}` : '/',
-  neighborhoods: () => '/',
+  neighborhoods: (data) =>
+    typeof data.slug === 'string' && data.slug ? `/neighborhoods/${data.slug}` : '/neighborhoods',
   pages: (data) => {
     const slug = typeof data.slug === 'string' ? data.slug : ''
     if (!slug || slug === 'home' || slug === 'index') return '/'

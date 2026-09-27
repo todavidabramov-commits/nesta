@@ -3,6 +3,11 @@ import type { Where } from 'payload'
 import { getPayloadClient } from '@/lib/payload'
 import type { Locale } from '@/i18n/config'
 import { getMessages } from '@/i18n/messages'
+import {
+  getNeighborhoodGuide,
+  localizeNeighborhoodGuide,
+  neighborhoodGuides,
+} from '@/data/neighborhoods'
 
 import {
   mapAgent,
@@ -19,18 +24,36 @@ import {
   type AgentView,
   type BookViewingView,
   type CompareView,
+  type CustomerMessageView,
+  type DashboardView,
+  type FavoritesView,
   type FooterView,
   type HeaderView,
   type HomePageView,
   type HomeView,
   type MatchingView,
+  type NeighborhoodDetailPageView,
+  type NeighborhoodGuideCard,
+  type NeighborhoodsDirectoryView,
   type NeighborhoodView,
   type PropertyDetailView,
   type PropertyFilters,
   type PropertyView,
+  type SavedSearchView,
   type SearchView,
   type SiteSettingsView,
+  type ViewingItemView,
+  type ViewingsView,
 } from './types'
+import {
+  formatBudgetShort,
+  isMatchingPriorityId,
+  matchingSearchHref,
+  type MatchingPrefs,
+  type MatchingPriorityId,
+  type MatchingPurpose,
+} from '@/lib/matching'
+import { formatConfirmWhen } from '@/lib/viewing'
 
 function fallbackHome(locale: Locale): HomePageView {
   const t = getMessages(locale)
@@ -57,8 +80,8 @@ function fallbackHeader(locale: Locale): HeaderView {
     nav: t.header.nav,
     signInLabel: t.header.signIn,
     signInHref: '/sign-in',
-    ctaLabel: t.header.cta,
-    ctaHref: '/list-property',
+    ctaLabel: '',
+    ctaHref: '',
   }
 }
 
@@ -187,7 +210,7 @@ export async function getHomeView(locale: Locale): Promise<HomeView> {
         collection: 'properties',
         where: { featured: { equals: true } },
         sort: 'order',
-        limit: 8,
+        limit: 4,
         depth: 2,
         ...opts,
       }),
@@ -201,7 +224,7 @@ export async function getHomeView(locale: Locale): Promise<HomeView> {
     const mappedProperties =
       properties.docs.length > 0
         ? properties.docs.map((doc) => mapProperty(doc as unknown as Record<string, unknown>))
-        : fallbackProperties(locale)
+        : fallbackProperties(locale).slice(0, 4)
 
     return {
       page,
@@ -211,7 +234,7 @@ export async function getHomeView(locale: Locale): Promise<HomeView> {
   } catch {
     return {
       page: fallbackHome(locale),
-      properties: fallbackProperties(locale),
+      properties: fallbackProperties(locale).slice(0, 4),
       header: fallbackHeader(locale),
       footer: fallbackFooter(locale),
       settings: fallbackSettings(locale),
@@ -507,6 +530,260 @@ export async function getMatchingView(locale: Locale): Promise<MatchingView> {
   }
 }
 
+export async function getDashboardView(
+  locale: Locale,
+  favoriteIds: string[] = [],
+  customerId?: string,
+): Promise<DashboardView> {
+  const [favorites, viewings, messages, savedSearches] = await Promise.all([
+    getFavoritesView(locale, favoriteIds),
+    customerId
+      ? getViewingsView(locale, customerId)
+      : Promise.resolve({
+          items: [] as ViewingItemView[],
+          header: fallbackHeader(locale),
+          footer: fallbackFooter(locale),
+          settings: fallbackSettings(locale),
+        }),
+    customerId ? getCustomerMessages(locale, customerId) : Promise.resolve([] as CustomerMessageView[]),
+    customerId
+      ? getCustomerSavedSearches(locale, customerId)
+      : Promise.resolve([] as SavedSearchView[]),
+  ])
+  return {
+    favorites: favorites.properties,
+    viewings: viewings.items,
+    messages,
+    savedSearches,
+    header: favorites.header,
+    footer: favorites.footer,
+    settings: favorites.settings,
+  }
+}
+
+function formatMessageDate(iso: string, locale: Locale) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function mapCustomerMessage(
+  doc: Record<string, unknown>,
+  locale: Locale,
+): CustomerMessageView | null {
+  const id = doc.id != null ? String(doc.id) : ''
+  const title = typeof doc.title === 'string' ? doc.title.trim() : ''
+  const body = typeof doc.body === 'string' ? doc.body.trim() : ''
+  if (!id || !title || !body) return null
+  const createdAt = typeof doc.createdAt === 'string' ? doc.createdAt : ''
+  return {
+    id,
+    title,
+    body,
+    read: Boolean(doc.read),
+    createdAt,
+    createdLabel: createdAt ? formatMessageDate(createdAt, locale) : '',
+  }
+}
+
+export async function getCustomerMessages(
+  locale: Locale,
+  customerId: string,
+): Promise<CustomerMessageView[]> {
+  try {
+    const payload = await getPayloadClient()
+    const id = String(customerId || '').trim()
+    if (!id) return []
+
+    const numericId = Number(id)
+    const customerFilter =
+      Number.isFinite(numericId) && String(numericId) === id
+        ? { customer: { equals: numericId } }
+        : { customer: { equals: id } }
+
+    const result = await payload.find({
+      collection: 'customer-messages',
+      where: customerFilter,
+      sort: '-createdAt',
+      limit: 50,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    return result.docs
+      .map((doc) => mapCustomerMessage(doc as unknown as Record<string, unknown>, locale))
+      .filter((item): item is CustomerMessageView => Boolean(item))
+  } catch (error) {
+    console.error('[getCustomerMessages]', error)
+    return []
+  }
+}
+
+function savedSearchDetail(prefs: MatchingPrefs, locale: Locale): string {
+  const t = getMessages(locale).matching
+  const purpose = prefs.purpose === 'rent' ? t.purposeShortRent : t.purposeShortBuy
+  const budget = `${formatBudgetShort(prefs.budgetMin, prefs.purpose, locale)}—${formatBudgetShort(prefs.budgetMax, prefs.purpose, locale)}`
+  const beds = t.bedsValue.replace('{count}', prefs.bedrooms >= 4 ? '4+' : String(prefs.bedrooms))
+  const priorityLabels = prefs.priorities
+    .map((id) => t.priorityShort[id] || t.priorities[id])
+    .filter(Boolean)
+  const parts = [purpose, budget, beds]
+  if (priorityLabels.length) parts.push(priorityLabels.join(', '))
+  return parts.join(' · ')
+}
+
+function mapSavedSearchRow(
+  row: Record<string, unknown>,
+  locale: Locale,
+): SavedSearchView | null {
+  const id = row.id != null ? String(row.id) : ''
+  const purpose: MatchingPurpose | null =
+    row.purpose === 'rent' || row.purpose === 'buy' ? row.purpose : null
+  const budgetMin = Number(row.budgetMin)
+  const budgetMax = Number(row.budgetMax)
+  const bedrooms = Number(row.bedrooms)
+  if (!id || !purpose || !Number.isFinite(budgetMin) || !Number.isFinite(budgetMax)) return null
+  if (!Number.isFinite(bedrooms) || bedrooms < 1 || bedrooms > 4) return null
+
+  const priorities = (Array.isArray(row.priorities) ? row.priorities : [])
+    .map(String)
+    .filter(isMatchingPriorityId) as MatchingPriorityId[]
+
+  const prefs: MatchingPrefs = {
+    purpose,
+    budgetMin,
+    budgetMax,
+    bedrooms,
+    priorities,
+  }
+
+  const title =
+    typeof row.title === 'string' && row.title.trim()
+      ? row.title.trim()
+      : savedSearchDetail(prefs, locale)
+
+  return {
+    id,
+    title,
+    detail: savedSearchDetail(prefs, locale),
+    purpose,
+    priorities,
+    budgetMin,
+    budgetMax,
+    bedrooms,
+    href: matchingSearchHref(prefs, true),
+  }
+}
+
+export async function getCustomerSavedSearches(
+  locale: Locale,
+  customerId: string,
+): Promise<SavedSearchView[]> {
+  try {
+    const payload = await getPayloadClient()
+    const id = String(customerId || '').trim()
+    if (!id) return []
+
+    const doc = await payload.findByID({
+      collection: 'customers',
+      id,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    const rows = Array.isArray(doc.savedSearches) ? doc.savedSearches : []
+    return rows
+      .map((row) => mapSavedSearchRow(row as unknown as Record<string, unknown>, locale))
+      .filter((item): item is SavedSearchView => Boolean(item))
+      .reverse()
+  } catch (error) {
+    console.error('[getCustomerSavedSearches]', error)
+    return []
+  }
+}
+
+function viewingSortKey(date: string, time: string) {
+  return `${date}T${time || '00:00'}`
+}
+
+function mapViewingItem(
+  doc: Record<string, unknown>,
+  locale: Locale,
+): ViewingItemView | null {
+  const propertyRaw = doc.property
+  if (!propertyRaw || typeof propertyRaw !== 'object') return null
+  const property = mapProperty(propertyRaw as Record<string, unknown>)
+  if (!property.id && !property.slug) return null
+  const date = String(doc.viewingDate || '').slice(0, 10)
+  const time = String(doc.viewingTime || '')
+  if (!date || !time) return null
+  const status =
+    doc.status === 'new' || doc.status === 'cancelled' || doc.status === 'confirmed'
+      ? doc.status
+      : 'confirmed'
+  return {
+    id: String(doc.id ?? ''),
+    date,
+    time,
+    status,
+    whenLabel: formatConfirmWhen(date, time, locale),
+    property,
+  }
+}
+
+export async function getViewingsView(
+  locale: Locale,
+  customerId: string,
+): Promise<ViewingsView> {
+  try {
+    const payload = await getPayloadClient()
+    const globals = await loadGlobals(locale)
+    const id = String(customerId || '').trim()
+    if (!id) return { items: [], ...globals }
+
+    const numericId = Number(id)
+    const customerFilter =
+      Number.isFinite(numericId) && String(numericId) === id
+        ? { customer: { equals: numericId } }
+        : { customer: { equals: id } }
+
+    const result = await payload.find({
+      collection: 'viewing-requests',
+      where: {
+        and: [customerFilter, { status: { not_equals: 'cancelled' } }],
+      },
+      sort: 'viewingDate',
+      limit: 50,
+      depth: 2,
+      overrideAccess: true,
+      ...cmsLocale(locale),
+    })
+
+    const items = result.docs
+      .map((doc) => mapViewingItem(doc as unknown as Record<string, unknown>, locale))
+      .filter(Boolean) as ViewingItemView[]
+
+    items.sort((a, b) =>
+      viewingSortKey(a.date, a.time).localeCompare(viewingSortKey(b.date, b.time)),
+    )
+
+    return { items, ...globals }
+  } catch {
+    return {
+      items: [],
+      header: fallbackHeader(locale),
+      footer: fallbackFooter(locale),
+      settings: fallbackSettings(locale),
+    }
+  }
+}
+
 export async function getCompareView(locale: Locale, slugs: string[]): Promise<CompareView> {
   const ordered = [...new Set(slugs.map((s) => s.trim()).filter(Boolean))].slice(0, 3)
   try {
@@ -533,6 +810,45 @@ export async function getCompareView(locale: Locale, slugs: string[]): Promise<C
     const bySlug = new Map(all.map((p) => [p.slug, p]))
     return {
       properties: ordered.map((slug) => bySlug.get(slug)).filter(Boolean) as PropertyView[],
+      header: fallbackHeader(locale),
+      footer: fallbackFooter(locale),
+      settings: fallbackSettings(locale),
+    }
+  }
+}
+
+export async function getFavoritesView(
+  locale: Locale,
+  propertyIds: string[],
+): Promise<FavoritesView> {
+  const ordered = [...new Set(propertyIds.map((id) => String(id).trim()).filter(Boolean))]
+  try {
+    const payload = await getPayloadClient()
+    const globals = await loadGlobals(locale)
+    if (ordered.length === 0) {
+      return { properties: [], ...globals }
+    }
+    const idFilters = ordered.flatMap((id) => {
+      const numeric = Number(id)
+      if (Number.isFinite(numeric) && String(numeric) === id) return [numeric, id]
+      return [id]
+    })
+    const result = await payload.find({
+      collection: 'properties',
+      where: { id: { in: [...new Set(idFilters)] } },
+      limit: Math.max(ordered.length, 1),
+      depth: 2,
+      ...cmsLocale(locale),
+    })
+    const mapped = result.docs.map((doc) => mapProperty(doc as unknown as Record<string, unknown>))
+    const byId = new Map(mapped.map((p) => [String(p.id), p]))
+    return {
+      properties: ordered.map((id) => byId.get(id)).filter(Boolean) as PropertyView[],
+      ...globals,
+    }
+  } catch {
+    return {
+      properties: [],
       header: fallbackHeader(locale),
       footer: fallbackFooter(locale),
       settings: fallbackSettings(locale),
@@ -593,6 +909,157 @@ export async function getBookViewingView(
       propertyLocked,
       initialDate,
       initialTime,
+      header: fallbackHeader(locale),
+      footer: fallbackFooter(locale),
+      settings: fallbackSettings(locale),
+    }
+  }
+}
+
+function guideCards(
+  locale: Locale,
+  counts: Record<string, number> = {},
+): NeighborhoodGuideCard[] {
+  return neighborhoodGuides.map((guide) => {
+    const item = localizeNeighborhoodGuide(guide, locale)
+    return {
+      id: item.id,
+      slug: item.slug,
+      name: item.name,
+      vibe: item.vibe,
+      summary: item.summary,
+      coverUrl: item.coverUrl,
+      coverAlt: item.coverAlt,
+      avgBuy: item.avgBuy,
+      avgRent: item.avgRent,
+      activeCount: counts[guide.slug] ?? item.activeCount,
+      lifestyle: item.lifestyle,
+    }
+  })
+}
+
+async function propertyCountsByNeighborhood(locale: Locale): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {}
+  try {
+    const payload = await getPayloadClient()
+    const result = await payload.find({
+      collection: 'properties',
+      limit: 200,
+      depth: 1,
+      ...cmsLocale(locale),
+    })
+    for (const doc of result.docs) {
+      const hood = doc.neighborhood as unknown
+      let slug = ''
+      if (hood && typeof hood === 'object' && 'slug' in hood) {
+        slug = String((hood as { slug?: unknown }).slug || '')
+      }
+      if (!slug) continue
+      counts[slug] = (counts[slug] || 0) + 1
+    }
+    return counts
+  } catch {
+    for (const property of fallbackProperties(locale)) {
+      if (!property.neighborhoodSlug) continue
+      counts[property.neighborhoodSlug] = (counts[property.neighborhoodSlug] || 0) + 1
+    }
+    return counts
+  }
+}
+
+export async function getNeighborhoodsDirectoryView(
+  locale: Locale,
+): Promise<NeighborhoodsDirectoryView> {
+  const counts = await propertyCountsByNeighborhood(locale)
+  const neighborhoods = guideCards(locale, counts)
+  const highest =
+    neighborhoods.find((item) => item.slug === 'grachtengordel')?.name ||
+    neighborhoods[0]?.name ||
+    ''
+
+  try {
+    const globals = await loadGlobals(locale)
+    return {
+      neighborhoods,
+      highestValuationName: highest,
+      ...globals,
+    }
+  } catch {
+    return {
+      neighborhoods,
+      highestValuationName: highest,
+      header: fallbackHeader(locale),
+      footer: fallbackFooter(locale),
+      settings: fallbackSettings(locale),
+    }
+  }
+}
+
+export async function getNeighborhoodDetailView(
+  locale: Locale,
+  slug: string,
+): Promise<NeighborhoodDetailPageView | null> {
+  const guide = getNeighborhoodGuide(slug)
+  if (!guide) return null
+
+  const neighborhood = localizeNeighborhoodGuide(guide, locale)
+
+  try {
+    const payload = await getPayloadClient()
+    const opts = cmsLocale(locale)
+    const hood = await payload.find({
+      collection: 'neighborhoods',
+      where: { slug: { equals: slug } },
+      limit: 1,
+      ...opts,
+    })
+
+    let properties: PropertyView[] = []
+    if (hood.docs[0]) {
+      const result = await payload.find({
+        collection: 'properties',
+        where: { neighborhood: { equals: hood.docs[0].id } },
+        limit: 4,
+        depth: 2,
+        sort: 'order',
+        ...opts,
+      })
+      properties = result.docs.map((doc) =>
+        mapProperty(doc as unknown as Record<string, unknown>),
+      )
+    }
+
+    if (properties.length < 2) {
+      const fallback = fallbackProperties(locale).filter(
+        (item) => item.neighborhoodSlug === slug || properties.length === 0,
+      )
+      const seen = new Set(properties.map((p) => p.slug))
+      for (const item of fallback) {
+        if (seen.has(item.slug)) continue
+        properties.push(item)
+        if (properties.length >= 2) break
+      }
+      if (properties.length < 2) {
+        for (const item of fallbackProperties(locale)) {
+          if (seen.has(item.slug)) continue
+          properties.push(item)
+          seen.add(item.slug)
+          if (properties.length >= 2) break
+        }
+      }
+    }
+
+    const globals = await loadGlobals(locale)
+    return { neighborhood, properties, ...globals }
+  } catch {
+    const properties = fallbackProperties(locale)
+      .filter((item) => item.neighborhoodSlug === slug)
+      .slice(0, 2)
+    const list =
+      properties.length > 0 ? properties : fallbackProperties(locale).slice(0, 2)
+    return {
+      neighborhood,
+      properties: list,
       header: fallbackHeader(locale),
       footer: fallbackFooter(locale),
       settings: fallbackSettings(locale),
