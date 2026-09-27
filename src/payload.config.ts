@@ -92,15 +92,21 @@ export default buildConfig({
     pool: {
       connectionString: process.env.POSTGRES_URL || '',
     },
+    // Until formal migrations are added, keep schema in sync on boot/build.
+    push: true,
   }),
   sharp,
   plugins: [
-    vercelBlobStorage({
-      collections: {
-        media: true,
-      },
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      clientUploads: true,
-    }),
+    ...(process.env.BLOB_READ_WRITE_TOKEN
+      ? [
+          vercelBlobStorage({
+            collections: {
+              media: true,
+            },
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+            clientUploads: true,
+          }),
+        ]
+      : []),
   ],
 })
