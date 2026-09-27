@@ -37,12 +37,12 @@ export async function createViewingRequest(input: {
     const payload = await getPayloadClient()
     const { user } = await payload.auth({ headers: await headers() })
 
-    let customerId: string | number | undefined
+    let customerId: number | undefined
     let name = input.name?.trim() || undefined
     let email = input.email?.trim() || undefined
 
     if (user && user.collection === 'customers') {
-      customerId = user.id
+      customerId = Number(user.id)
       try {
         const customer = await payload.findByID({
           collection: 'customers',

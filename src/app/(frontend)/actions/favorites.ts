@@ -24,10 +24,10 @@ function relationIds(value: unknown): string[] {
   return [...new Set(ids)]
 }
 
-function asRelationId(value: string): number | string {
+function asRelationId(value: string): number {
   const numeric = Number(value)
-  if (Number.isFinite(numeric) && String(numeric) === value) return numeric
-  return value
+  if (Number.isFinite(numeric)) return numeric
+  throw new Error(`Invalid relation id: ${value}`)
 }
 
 export async function toggleFavorite(propertyId: string): Promise<FavoriteActionResult> {
@@ -51,7 +51,9 @@ export async function toggleFavorite(propertyId: string): Promise<FavoriteAction
     const current = relationIds(doc.favorites)
     const favorited = !current.includes(id)
     const nextIds = favorited ? [...current, id] : current.filter((item) => item !== id)
-    const next = nextIds.map(asRelationId)
+    const next = nextIds
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item))
 
     await payload.update({
       collection: 'customers',

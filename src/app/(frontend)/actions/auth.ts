@@ -177,7 +177,7 @@ export async function updateCustomerProfile(formData: FormData): Promise<Profile
     const data: {
       firstName: string
       lastName: string
-      avatar?: number | string
+      avatar?: number
       password?: string
     } = {
       firstName,
@@ -206,7 +206,7 @@ export async function updateCustomerProfile(formData: FormData): Promise<Profile
         },
         overrideAccess: true,
       })
-      data.avatar = media.id
+      data.avatar = Number(media.id)
     }
 
     await payload.update({
